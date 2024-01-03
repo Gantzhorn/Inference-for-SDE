@@ -58,17 +58,20 @@ euler_maruyama_likelihood_doublewell <- function(param, data, dt){
   beta1 <- param[1]
   beta2 <- param[2]
   beta4 <- param[3]
-  sigma <- param[4]
+  sigma <- exp(param[4])
   
   # Prepare data
   N <- length(data)
   lower_x <- data[1:(N - 1)]
   upper_x <- data[2:N]
   
-  likelihood_value <- 1/2 * sum(log(2*pi*sigma^2 * dt) + 
-                                  (upper_x - lower_x + (beta4 * lower_x^3 - beta2 * lower_x - beta1) * dt)^2 /
-                                  (sigma^2 * dt))
-  likelihood_value
+  mu <- lower_x - (beta4 * lower_x^3 - beta2 * lower_x - beta1) * dt
+  sd <- sigma * sqrt(dt)
+  # likelihood_value <- 1/2 * sum(log(2*pi*sigma^2 * dt) + 
+  #                                 (upper_x - lower_x - (beta4 * lower_x^3 - beta2 * lower_x - beta1) * dt)^2 /
+  #                                 (sigma^2 * dt))
+  -sum(dnorm(upper_x, mean = mu, sd = sd, log = TRUE))
+  # likelihood_value
 }
 
 euler_maruyama_likelihood_transformed_doublewell <- function(param, data, dt){
