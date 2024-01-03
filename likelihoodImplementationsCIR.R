@@ -72,18 +72,11 @@ closedform_likelihood_CIR <- function(param, data, dt){
   
   # Prepare data
   N <- length(data)
-  Y_0 <- data[1]
+  lower_x <- data[1:(N - 1)]
+  upper_x <- data[2:N]
   
-  # likelihood_value <- 1/2 * sum(Y_0 * exp(-beta * dt) + beta * dt -
-  #                                 (2 * mu * beta / sigma^2) * (log(data / Y_0) + beta * dt) -
-  #                                 2 * log(
-  #                                   besselI(x = sqrt( Y_0 * exp(-beta * dt) * data ), nu = (2 * mu * beta / sigma^2 - 1))
-  #                                           )
-  #                                 )
-  
-  likelihood_value <- sum(dchisq(data, df = 4 * mu * beta / sigma^2, ncp = Y_0 * exp(-beta * dt), log = TRUE))
-  print(c(beta, mu, sigma))
-  -likelihood_value
+  likelihood_value <- -sum(dchisq(upper_x, df = 4 * mu * beta / sigma^2, ncp = lower_x * exp(-beta * dt), log = TRUE))
+  likelihood_value
 }
 
 closedform_likelihood_CIR(initial_param, sim_data$X_closed_form, actual_dt)
