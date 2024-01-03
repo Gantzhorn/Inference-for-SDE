@@ -132,14 +132,17 @@ strang <- function(par, x, fs, dt) {
   diff_f <- function(t, y) fs$split_f(y, par)
   diff_df <- function(t, dy, y) dy * fs$split_df(y, par)
   
-  inv_f <- runge_kutta_nystrom(x1, diff_f(0, x1), -dt / 2, diff_df)
+  inv_f <- runge_kutta(x1, -dt / 2, diff_f)
+  inv_f2 <- runge_kutta(x1 + 0.01, -dt / 2, diff_f)
+  inv_f3 <- runge_kutta(x1 - 0.01, -dt / 2, diff_f)
   f <- runge_kutta(x0, dt / 2, diff_f)
-  df <- runge_kutta_nystrom(x1, diff_f(0, x1), dt / 2, diff_df)
+  df <- (inv_f2 - inv_f3) / (2 * 0.01) # Richardson Extrapolation
+  # df <- (inv_f2 - inv_f) / 0.1
   
   mu <- exp(A * dt) * f
   omega <- sigma * sqrt((exp(2 * A * dt) - 1) / (2 * A))
   
-  -sum(dnorm(inv_f$y, mean = mu, sd = omega, log = TRUE)) + sum(log(abs(df$dy)))
+  -sum(dnorm(inv_f, mean = mu, sd = omega, log = TRUE)) - sum(log(abs(df)))
 }
 
 lie_trotter <- function(par, x, fs, dt) {
@@ -163,11 +166,11 @@ DW_fn <- DW_functions()
 CIR_fn <- Lamperti_CIR_functions()
 
 optim(
-  par = CIR_fn$inverse_transform(martingale(data3$x, 0.02)), 
-  fn = lie_trotter,
+  par = CIR_fn$inverse_transform(martingale(data2$Ca2, 0.02)), 
+  fn = strang,
   fs = CIR_fn,
   dt = 0.02,
-  x = data3$Y,
+  x = data2$Y,
   control = list(reltol = sqrt(.Machine$double.eps) / 1e8, maxit = 1000),
   method = "BFGS"
 )$par %>% 
