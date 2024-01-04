@@ -130,13 +130,15 @@ strang <- function(par, x, fs, dt) {
   sigma <- fs$sigma(x0, par)
   
   diff_f <- function(t, y) fs$split_f(y, par)
-  diff_df <- function(t, dy, y) dy * fs$split_df(y, par)
   
   inv_f <- runge_kutta(x1, -dt / 2, diff_f)
   inv_f2 <- runge_kutta(x1 + 0.01, -dt / 2, diff_f)
   inv_f3 <- runge_kutta(x1 - 0.01, -dt / 2, diff_f)
+  # inv_f4 <- runge_kutta(x1 + 2 * 0.01, -dt / 2, diff_f)
+  # inv_f5 <- runge_kutta(x1 - 2 * 0.01, -dt / 2, diff_f)
   f <- runge_kutta(x0, dt / 2, diff_f)
   df <- (inv_f2 - inv_f3) / (2 * 0.01) # Richardson Extrapolation
+  # df <- (inv_f5 - 8 * inv_f3 + 8 * inv_f2 - inv_f4) / (12 * 0.01) # Richardson Extrapolation 2
   # df <- (inv_f2 - inv_f) / 0.1
   
   mu <- exp(A * dt) * f
@@ -166,13 +168,12 @@ DW_fn <- DW_functions()
 CIR_fn <- Lamperti_CIR_functions()
 
 optim(
-  par = CIR_fn$inverse_transform(martingale(data2$Ca2, 0.02)), 
-  fn = strang,
-  fs = CIR_fn,
+  par = DW_fn$inverse_transform(pars2), 
+  fn = euler_maruyama,
+  fs = DW_fn,
   dt = 0.02,
-  x = data2$Y,
+  x = em_sims$x,
   control = list(reltol = sqrt(.Machine$double.eps) / 1e8, maxit = 1000),
   method = "BFGS"
 )$par %>% 
-  CIR_fn$transform()
-
+  DW_fn$transform()
