@@ -5,6 +5,7 @@ DW_functions <- function() {
     dtf = function(x, par) 0,
     d2f = function(x, par) -6 * par[3] * x,
     sigma = function(x, par) exp(par[4]),
+    dsigma = function(x, par) 0,
     # SPLITTING SCHEME
     split_A = function(par) par[2],
     split_f = function(x, par) -par[3] * x^3 + par[1],
@@ -15,6 +16,21 @@ DW_functions <- function() {
   )
 }
 
+CIR_functions <- function() {
+  list(
+    f = function(x, par) -exp(par[1]) * (x - par[2]),
+    df = function(x, par) -exp(par[1]),
+    dtf = function(x, par) 0,
+    d2f = function(x, par) 0,
+    sigma = function(x, par) exp(par[3]) * sqrt(x),
+    dsigma = function(x, par) exp(par[3]) / (2 * sqrt(x)),
+    # NO SPLITTING SCHEME
+    # MISC
+    transform = function(par) c(exp(par[1]), par[2], exp(par[3])),
+    inverse_transform = function(par) c(log(par[1]), par[2], log(par[3]))
+  )
+}
+
 Lamperti_CIR_functions <- function() {
   list(
     f = function(x, par) -exp(par[1]) * (x / 2 - 2 * par[2] / x) - exp(2 * par[3]) / (2 * x),
@@ -22,6 +38,7 @@ Lamperti_CIR_functions <- function() {
     dtf = function(x, par) 0,
     d2f = function(x, par) (4 * par[2] * exp(par[1]) - exp(2 * par[3])) / x^3,
     sigma = function(x, par) exp(par[3]),
+    dsigma = function(x, par) 0,
     # SPLITTING SCHEME
     split_A = function(par) - 0.5 * exp(par[1]),
     split_f = function(x, par) (4 * exp(par[1]) * par[2] - exp(2 * par[3])) / (2 * x),
@@ -48,6 +65,34 @@ local_linearization <- function(par, x, fs, dt) {
   -sum(dnorm(x1, mean = LL_mean, sd = LL_sd, log = TRUE))
 }
 
+rlocal_linearization <- function(par, x0, t0, t1, fs, dt) {
+  N <- (t1 - t0) / dt
+  ff <- fs$f
+  fdf <- fs$df
+  fd2f <- fs$d2f
+  fdtf <- fs$dtf
+  fsigma <- fs$sigma
+  
+  x <- numeric(N + 1)
+  x[1] <- x0
+  xi <- rnorm(N, mean = 0, sd = 1)
+  
+  for(i in 2:(N + 1)) {
+    f <- ff(x[i - 1], par)
+    df <- fdf(x[i - 1], par)
+    d2f <- fd2f(x[i - 1], par)
+    dtf <- fdtf(x[i - 1], par)
+    sigma <- fsigma(x[i - 1], par)
+    
+    r0 <- (exp(df * dt) - 1) / df
+    LL_mean <- x0 + r0 * f + (r0 - dt / df) * (dtf + 0.5 * sigma^2 * d2f)
+    LL_sd <- sigma * sqrt((exp(2 * df * dt) - 1) / (2 * df))
+    
+    x[i] <- LL_mean + LL_sd * xi[i - 1]
+  }
+  x
+}
+
 euler_maruyama <- function(par, x, fs, dt) {
   x0 <- x[1:(length(x) - 1)]
   x1 <- x[2:length(x)]
@@ -59,6 +104,35 @@ euler_maruyama <- function(par, x, fs, dt) {
   -sum(dnorm(x1, mean = EM_mean, sd = EM_sd, log = TRUE))
 }
 
+reuler_maruyama <- function(par, x0, t0, t1, fs, dt) {
+  N <- (t1 - t0) / dt
+  f <- fs$f
+  sigma <- fs$sigma
+  x <- numeric(N + 1)
+  x[1] <- x0
+  xi <- rnorm(N, mean = 0, sd = sqrt(dt))
+  for(i in 2:(N + 1)) {
+    x[i] <- x[i - 1] + f(x[i - 1], par) + sigma(x[i - 1], par) * xi[i - 1]
+  }
+  x
+}
+
+rmilstein <- function(par, x0, t0, t1, fs, dt) {
+  N <- (t1 - t0) / dt
+  f <- fs$f
+  sigma <- fs$sigma
+  dsigma <- fs$dsigma
+  x <- numeric(N + 1)
+  x[1] <- x0
+  xi <- rnorm(N, mean = 0, sd = sqrt(dt))
+  for(i in 2:(N + 1)) {
+    fsigma <- sigma(x[i - 1], par)
+    fdsigma <- dsigma(x[i - 1], par)
+    x[i] <- x[i - 1] + f(x[i - 1], par) + fsigma * xi[i - 1] +
+      0.5 * fdsigma * fsigma * (xi[i - 1]^2 - dt)
+  }
+  x
+}
 # Kun til CIR-modellen
 martingale <- function(x, dt) {
   N <- length(x)
@@ -80,6 +154,22 @@ martingale <- function(x, dt) {
   sugma <- S4 / S5
   
   c(beta = beta, mu = mu, sigma = sqrt(sugma))
+}
+
+# Only for CIR
+closedform_likelihood_CIR <- function(par, x, t, fs, dt){
+  # Initialize parameters
+  beta <- exp(par[1])
+  mu <- par[2]
+  sigma <- exp(par[3])
+  
+  # Prepare data
+  N <- length(x)
+  x <- 4 * beta / (sigma^2 * (1 - exp(-beta * t))) * x
+  lower_x <- x[1:(N - 1)]
+  upper_x <- x[2:N]
+  
+  -sum(dchisq(upper_x, df = 4 * mu * beta / sigma^2, ncp = lower_x * exp(-beta * dt), log = TRUE))
 }
 
 runge_kutta_nystrom <- function(y0, dy0, h, f, n = 1) {
@@ -147,6 +237,27 @@ strang <- function(par, x, fs, dt) {
   -sum(dnorm(inv_f, mean = mu, sd = omega, log = TRUE)) - sum(log(abs(df)))
 }
 
+rstrang <- function(par, x0, t0, t1, fs, dt) {
+  N <- (t1 - t0) / dt
+  sigma <- fs$sigma
+  A <- fs$split_A(par)
+  sigma <- fs$sigma
+  diff_f <- function(t, y) fs$split_f(y, par)
+  
+  x <- numeric(N + 1)
+  x[1] <- x0
+  xi <- rnorm(N, mean = 0, sd = 1)
+  
+  for(i in 2:(N + 1)) {
+    fsigma <- sigma(x[i - 1], par)
+    f <- runge_kutta(x[i - 1], dt / 2, diff_f)
+    mu <- exp(A * dt) * f
+    omega <- fsigma * sqrt((exp(2 * A * dt) - 1) / (2 * A))
+    x[i] <- runge_kutta(mu + omega * xi[i - 1], dt / 2, diff_f)
+  }
+  x
+}
+
 lie_trotter <- function(par, x, fs, dt) {
   x0 <- x[1:(length(x) - 1)]
   x1 <- x[2:length(x)]
@@ -156,7 +267,7 @@ lie_trotter <- function(par, x, fs, dt) {
   sigma <- fs$sigma(x0, par)
   
   diff_f <- function(t, y) fs$split_f(y, par)
-  f <- runge_kutta(x0, dt / 2, diff_f)
+  f <- runge_kutta(x0, dt, diff_f)
   
   mu <- exp(A * dt) * f
   omega <- sigma * sqrt((exp(2 * A * dt) - 1) / (2 * A))
@@ -164,16 +275,24 @@ lie_trotter <- function(par, x, fs, dt) {
   -sum(dnorm(x1, mean = mu, sd = omega, log = TRUE))
 }
 
-DW_fn <- DW_functions()
-CIR_fn <- Lamperti_CIR_functions()
-
-optim(
-  par = DW_fn$inverse_transform(pars2), 
-  fn = euler_maruyama,
-  fs = DW_fn,
-  dt = 0.02,
-  x = em_sims$x,
-  control = list(reltol = sqrt(.Machine$double.eps) / 1e8, maxit = 1000),
-  method = "BFGS"
-)$par %>% 
-  DW_fn$transform()
+rlie_trotter <-  function(par, x0, t0, t1, fs, dt) {
+  N <- (t1 - t0) / dt
+  sigma <- fs$sigma
+  A <- fs$split_A(par)
+  sigma <- fs$sigma
+  
+  diff_f <- function(t, y) fs$split_f(y, par)
+  
+  x <- numeric(N + 1)
+  x[1] <- x0
+  xi <- rnorm(N, mean = 0, sd = 1)
+  
+  for(i in 2:(N + 1)) {
+    fsigma <- sigma(x[i - 1], par)
+    f <- runge_kutta(x[i - 1], dt, diff_f)
+    mu <- exp(A * dt) * f
+    omega <- fsigma * sqrt((exp(2 * A * dt) - 1) / (2 * A))
+    x[i] <- mu + omega * xi[i - 1]
+  }
+  x
+}
