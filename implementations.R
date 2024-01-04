@@ -85,7 +85,7 @@ rlocal_linearization <- function(par, x0, t0, t1, fs, dt) {
     sigma <- fsigma(x[i - 1], par)
     
     r0 <- (exp(df * dt) - 1) / df
-    LL_mean <- x0 + r0 * f + (r0 - dt / df) * (dtf + 0.5 * sigma^2 * d2f)
+    LL_mean <- x[i - 1] + r0 * f + (r0 - dt / df) * (dtf + 0.5 * sigma^2 * d2f)
     LL_sd <- sigma * sqrt((exp(2 * df * dt) - 1) / (2 * df))
     
     x[i] <- LL_mean + LL_sd * xi[i - 1]
@@ -112,7 +112,7 @@ reuler_maruyama <- function(par, x0, t0, t1, fs, dt) {
   x[1] <- x0
   xi <- rnorm(N, mean = 0, sd = sqrt(dt))
   for(i in 2:(N + 1)) {
-    x[i] <- x[i - 1] + f(x[i - 1], par) + sigma(x[i - 1], par) * xi[i - 1]
+    x[i] <- x[i - 1] + f(x[i - 1], par) * dt + sigma(x[i - 1], par) * xi[i - 1]
   }
   x
 }
@@ -128,7 +128,7 @@ rmilstein <- function(par, x0, t0, t1, fs, dt) {
   for(i in 2:(N + 1)) {
     fsigma <- sigma(x[i - 1], par)
     fdsigma <- dsigma(x[i - 1], par)
-    x[i] <- x[i - 1] + f(x[i - 1], par) + fsigma * xi[i - 1] +
+    x[i] <- x[i - 1] + f(x[i - 1], par) * dt + fsigma * xi[i - 1] +
       0.5 * fdsigma * fsigma * (xi[i - 1]^2 - dt)
   }
   x
