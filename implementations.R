@@ -12,7 +12,8 @@ DW_functions <- function() {
     split_df = function(x, par) -3 * par[3] * x^2,
     # MISC
     transform = function(par) c(par[1], par[2], par[3], exp(par[4])),
-    inverse_transform = function(par) c(par[1:3], log(par[4]))
+    inverse_transform = function(par) c(par[1:3], log(par[4])),
+    nparms = 4
   )
 }
 
@@ -27,7 +28,8 @@ CIR_functions <- function() {
     # NO SPLITTING SCHEME
     # MISC
     transform = function(par) c(exp(par[1]), par[2], exp(par[3])),
-    inverse_transform = function(par) c(log(par[1]), par[2], log(par[3]))
+    inverse_transform = function(par) c(log(par[1]), par[2], log(par[3])),
+    nparms = 3
   )
 }
 
@@ -45,7 +47,8 @@ Lamperti_CIR_functions <- function() {
     split_df = function(x, par) -(4 * exp(par[1]) * par[2] - exp(2 * par[3])) / (2 * x^2),
     # MISC
     transform = function(par) c(exp(par[1]), par[2], exp(par[3])),
-    inverse_transform = function(par) c(log(par[1]), par[2], log(par[3]))
+    inverse_transform = function(par) c(log(par[1]), par[2], log(par[3])),
+    nparms = 3
   )
 }
 

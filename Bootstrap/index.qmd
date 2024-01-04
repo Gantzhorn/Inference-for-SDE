@@ -24,7 +24,7 @@ DW_fn <- DW_functions()
 ## Estimation Test
 
 ```{r}
-optim(
+par1 <- optim(
   par = L_CIR_fn$inverse_transform(martingale(dataset$Ca2, 0.02)),
   fn = lie_trotter,
   fs = L_CIR_fn,
@@ -38,13 +38,14 @@ optim(
 ) %>% 
   magrittr::extract2("par") %>% 
   CIR_fn$transform()
+par1
 ```
 
 ## Simulation Test
 
 ```{r}
 test <- rmilstein(
-  CIR_fn$inverse_transform(martingale(dataset$Ca2, 0.02)),
+  CIR_fn$inverse_transform(par1),
   x0 = dataset$Ca2[1],
   t0 = 23,
   t1 = 93,
@@ -57,8 +58,78 @@ test <- rmilstein(
 
 ```{r}
 library(ggplot2)
-test[seq(1, nrow(test), 100), ] %>% 
+test[seq(1, nrow(test), 200), ] %>% 
   ggplot(aes(x = t, y = x)) +
   geom_path() +
   ggplot2::theme_bw()
+```
+
+## Bootstrap Test
+
+```{r}
+bootstrap_model <- function(n, 
+                            x, 
+                            par0, 
+                            fs, 
+                            dt, 
+                            fitter, 
+                            sampler, 
+                            subsamples = 10,
+                            report = 25) {
+  par <- optim(
+    par = par0,
+    fn = fitter,
+    fs = fs,
+    dt = dt,
+    x = x,
+    control = list(
+      reltol = sqrt(.Machine$double.eps) / 1e8,
+      maxit = 1000L
+    ),
+    method = "BFGS"
+    )$par
+  
+  M <- matrix(nrow = n, ncol = length(par))
+  
+  for(i in 1:n) {
+    if(i %% report == 0 & i >= report) 
+      print(paste0("Iteration: ", i, " out of ", n))
+    sims <- sampler(
+      par,
+      x0 = x[1],
+      t0 = 23,
+      t1 = 93,
+      dt = dt / subsamples,
+      fs = fs
+    )
+    
+    M[i, ] <- optim(
+    par = par,
+    fn = fitter,
+    fs = fs,
+    dt = dt,
+    x = sims[seq(1, length(sims), subsamples)],
+    control = list(
+      reltol = sqrt(.Machine$double.eps) / 1e8,
+      maxit = 1000L
+    ),
+    method = "BFGS"
+    )$par
+  }
+  M
+}
+```
+
+```{r}
+bootstrap_model(
+  75, 
+  dataset$Y,
+  par0 = L_CIR_fn$inverse_transform(martingale(dataset$Ca2, 0.02)),
+  fs = L_CIR_fn,
+  dt = 0.02,
+  euler_maruyama,
+  reuler_maruyama,
+  subsamples = 1,
+  report = 10
+  )
 ```
