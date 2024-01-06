@@ -157,7 +157,7 @@ L_cir_maruyama <- bootstrap_model(
   report = 25
   )
 
-saveRDS(L_cir_maruyama, file = "l_cir_maruyama")
+saveRDS(L_cir_maruyama, file = "l_cir_maruyama.rds")
 
 set.seed(1231782)
 L_cir_ll <- bootstrap_model(
@@ -172,7 +172,7 @@ L_cir_ll <- bootstrap_model(
   report = 25
   )
 
-saveRDS(L_cir_ll, file = "l_cir_ll")
+saveRDS(L_cir_ll, file = "l_cir_ll.rds")
 
 set.seed(1231782)
 L_cir_lt <- bootstrap_model(
@@ -187,7 +187,7 @@ L_cir_lt <- bootstrap_model(
   report = 25
   )
 
-saveRDS(L_cir_lt, file = "l_cir_lt")
+saveRDS(L_cir_lt, file = "l_cir_lt.rds")
 
 set.seed(1231782)
 L_cir_strang <- bootstrap_model(
@@ -202,7 +202,7 @@ L_cir_strang <- bootstrap_model(
   report = 25
   )
 
-saveRDS(L_cir_strang, file = "l_cir_strang")
+saveRDS(L_cir_strang, file = "l_cir_strang.rds")
 
 set.seed(1231782)
 cir_maruyama <- bootstrap_model(
@@ -217,14 +217,14 @@ cir_maruyama <- bootstrap_model(
   report = 25
   )
 
-saveRDS(cir_maruyama, file = "cir_maruyama")
+saveRDS(cir_maruyama, file = "cir_maruyama.rds")
 
 set.seed(1231782)
 dw_maruyama <- bootstrap_model(
   1000, 
   dataset$logCa2, 
   par0 = DW_fn$inverse_transform(c(1, -1, 1, 1)),
-  fs = CIR_fn,
+  fs = DW_fn,
   dt = 0.02,
   euler_maruyama,
   rmilstein,
@@ -232,14 +232,14 @@ dw_maruyama <- bootstrap_model(
   report = 25
   )
 
-saveRDS(dw_maruyama, file = "dw_maruyama")
+saveRDS(dw_maruyama, file = "dw_maruyama.rds")
 
 set.seed(1231782)
 dw_ll <- bootstrap_model(
   1000, 
   dataset$logCa2, 
   par0 = DW_fn$inverse_transform(c(1, -1, 1, 1)),
-  fs = CIR_fn,
+  fs = DW_fn,
   dt = 0.02,
   local_linearization,
   rmilstein,
@@ -247,14 +247,14 @@ dw_ll <- bootstrap_model(
   report = 25
   )
 
-saveRDS(dw_ll, file = "dw_ll")
+saveRDS(dw_ll, file = "dw_ll.rds")
 
 set.seed(1231782)
 dw_lt <- bootstrap_model(
   1000, 
   dataset$logCa2, 
   par0 = DW_fn$inverse_transform(c(1, -1, 1, 1)),
-  fs = CIR_fn,
+  fs = DW_fn,
   dt = 0.02,
   lie_trotter,
   rmilstein,
@@ -262,14 +262,14 @@ dw_lt <- bootstrap_model(
   report = 25
   )
 
-saveRDS(dw_lt, file = "dw_lt")
+saveRDS(dw_lt, file = "dw_lt.rds")
 
 set.seed(1231782)
 dw_strang <- bootstrap_model(
   1000, 
   dataset$logCa2, 
   par0 = DW_fn$inverse_transform(c(1, -1, 1, 1)),
-  fs = CIR_fn,
+  fs = DW_fn,
   dt = 0.02,
   strang,
   rmilstein,
@@ -277,10 +277,7 @@ dw_strang <- bootstrap_model(
   report = 25
   )
 
-saveRDS(dw_strang, file = "dw_strang")
-
-
-
+saveRDS(dw_strang, file = "dw_strang.rds")
 ```
 
 ```{r}
@@ -343,13 +340,13 @@ optimizer(
 
 optimizer(
   c(1, -1, 1, log(1)),
-  fn = lie_trotter,
-  x = exp(-(sims1 + mean(-log(dataset$Ca2)))),
+  fn = euler_maruyama,
+  x = dataset$Ca2,
   dt = 0.02,
   fs = exp_DW_fn
 )
 
-DW2_fn <- DW2_functions()
+
 optimizer(
   c(1, -1, 1, log(1)),
   fn = strang,

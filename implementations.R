@@ -98,6 +98,7 @@ Lamperti_CIR_functions <- function() {
     dsigma = function(x, par) 0,
     # SPLITTING SCHEME
     split_A = function(par) - 0.5 * exp(par[1]),
+    split_b = function(par) 0,
     split_f = function(x, par) (4 * exp(par[1]) * par[2] - exp(2 * par[3])) / (2 * x),
     split_df = function(x, par) -(4 * exp(par[1]) * par[2] - exp(2 * par[3])) / (2 * x^2),
     # MISC
@@ -151,7 +152,7 @@ rlocal_linearization <- function(par, x0, t0, t1, fs, dt) {
   x
 }
 
-resid_local_linearization(par, x, fs, dt) {
+resid_local_linearization <- function(par, x, fs, dt) {
   x0 <- x[1:(length(x) - 1)]
   x1 <- x[2:length(x)]
   f <- fs$f(x0, par)
@@ -301,7 +302,6 @@ strang <- function(par, x, fs, dt) {
   x1 <- x[2:length(x)]
   A <- fs$split_A(par)
   b <- fs$split_b(par)
-  # b <- fs$split_b(par)
   
   sigma <- fs$sigma(x0, par)
   
