@@ -79,7 +79,7 @@ LT_likelihood_double_well <- function(param, data, dt){
   beta1 <- param[1]
   beta2 <- param[2]
   beta4 <- param[3]
-  sigma <- param[4]
+  sigma <- exp(param[4])
   
   
   N <- length(data)
@@ -100,28 +100,29 @@ optim(par = trueparam, fn = LT_likelihood_double_well,
       data = sample_doublewell$X, dt = actual_dt)
 
 Strang_likelihood_double_well <- function(param, data, dt){
-  
   beta1 <- param[1]
   beta2 <- param[2]
   beta4 <- param[3]
-  sigma <- param[4]
+  sigma <- exp(param[4])
   
   
   N <- length(data)
   lower_x <- data[1:(N - 1)]
   upper_x <- data[2:N]
   
-  f_delta_t <- 1 / sqrt(beta4 * dt + lower_x^(-2))
+  f_delta_t <- 1 / sqrt(beta4 * dt + 1 / lower_x^2)
   
   f_inverse_delta_t <- 1 / sqrt(1/upper_x^2 - beta4 * dt)
   
-  f_prime_inverse_delta_t <- 1 / (upper_x^3 * (1 / upper_x^2 - beta4 * dt)^(3/2)) 
+  f_prime_inverse_delta_t <- (1 / upper_x^2 - beta4 * dt)^(-3/2) / upper_x^3
+  
+  # f_prime_inverse_delta_t <- 1 / (upper_x^3 * (1 / upper_x^2 - beta4 * dt)^(3/2)) 
   
   mu <- exp(beta2 * dt) * (f_delta_t + beta1 / beta2) - beta1 / beta2
   
-  omega  <- sigma^2 / (2 * beta2) * (exp(2 * beta2 * dt) - 1)
+  omega  <- sigma * sqrt(expm1(2 * beta2 * dt) / (2 * beta2))
   
-  -sum(dnorm(f_inverse_delta_t, mean = mu, sd = sqrt(omega), log = TRUE)) - sum(log(abs(f_prime_inverse_delta_t)))
+  -sum(dnorm(f_inverse_delta_t, mean = mu, sd = omega, log = TRUE)) - sum(log(abs(f_prime_inverse_delta_t)))
 }
 
 optim(par = trueparam, fn = Strang_likelihood_double_well,

@@ -9,7 +9,7 @@ import_data <- function() {
     ) %>% 
     dplyr::mutate(
       age = age / 1000,
-      logCa2 = log(Ca2) - mean(log(Ca2)),
+      logCa2 = -log(Ca2) - mean(-log(Ca2)),
       Y = 2 * sqrt(Ca2)
     )
 }

@@ -19,17 +19,19 @@ dataset <- import_data()
 CIR_fn <- CIR_functions()
 L_CIR_fn <- Lamperti_CIR_functions()
 DW_fn <- DW_functions()
+log_CIR_fn <- Log_CIR_functions(mean(-log(dataset$Ca2)))
+exp_DW_fn <- exp_DW_functions(mean(-log(dataset$Ca2)))
 ```
 
 ## Estimation Test
 
 ```{r}
 par1 <- optim(
-  par = L_CIR_fn$inverse_transform(martingale(dataset$Ca2, 0.02)),
-  fn = lie_trotter,
-  fs = L_CIR_fn,
+  par = log_CIR_fn$inverse_transform(martingale(dataset$Ca2, 0.02)),
+  fn = euler_maruyama,
+  fs = log_CIR_fn,
   dt = 0.02,
-  x = dataset$Y,
+  x = dataset$logCa2,
   control = list(
     reltol = sqrt(.Machine$double.eps) / 1e8,
     maxit = 1000L
@@ -45,14 +47,14 @@ par1
 
 ```{r}
 test <- rmilstein(
-  CIR_fn$inverse_transform(par1),
-  x0 = dataset$Ca2[1],
+  CIR_fn$inverse_transform(martingale(dataset$Ca2, 0.02)),
+  x0 = dataset$logCa2[1],
   t0 = 23,
   t1 = 93,
   dt = 0.001,
   fs = CIR_fn
 ) %>% 
-  # {.^2 / 2} %>% 
+  {log(.) - mean(log(dataset$Ca2))} %>% 
   data.frame(x = ., t = seq(23, 93, 0.001))
 ```
 
@@ -67,6 +69,36 @@ test[seq(1, nrow(test), 200), ] %>%
 ## Bootstrap Test
 
 ```{r}
+optimizer <- function(par,
+                      fn,
+                      ...
+                      ) {
+  tryCatch({
+    optim(
+    par = par,
+    fn = fn,
+    ...,
+    control = list(
+      reltol = sqrt(.Machine$double.eps) / 1e8,
+      maxit = 1000L
+    ),
+    method = "BFGS"
+    )$par
+  },
+  error = function(e) {
+    optim(
+    par = par,
+    fn = fn,
+    ...,
+    control = list(
+      reltol = sqrt(.Machine$double.eps) / 1e8,
+      maxit = 1000L
+    )
+    )$par
+  }
+  )
+}
+
 bootstrap_model <- function(n, 
                             x, 
                             par0, 
@@ -76,18 +108,13 @@ bootstrap_model <- function(n,
                             sampler, 
                             subsamples = 10,
                             report = 25) {
-  par <- optim(
+  par <- optimizer(
     par = par0,
     fn = fitter,
     fs = fs,
     dt = dt,
-    x = x,
-    control = list(
-      reltol = sqrt(.Machine$double.eps) / 1e8,
-      maxit = 1000L
-    ),
-    method = "BFGS"
-    )$par
+    x = x
+    )
   
   M <- matrix(nrow = n, ncol = length(par))
   
@@ -103,33 +130,247 @@ bootstrap_model <- function(n,
       fs = fs
     )
     
-    M[i, ] <- optim(
+    M[i, ] <- optimizer(
     par = par,
     fn = fitter,
     fs = fs,
     dt = dt,
-    x = sims[seq(1, length(sims), subsamples)],
-    control = list(
-      reltol = sqrt(.Machine$double.eps) / 1e8,
-      maxit = 1000L
-    ),
-    method = "BFGS"
-    )$par
+    x = sims[seq(1, length(sims), subsamples)]
+    )
   }
   M
 }
 ```
 
 ```{r}
-bootstrap_model(
-  75, 
-  dataset$Y,
+set.seed(1231782)
+
+L_cir_maruyama <- bootstrap_model(
+  1000, 
+  dataset$Y, 
   par0 = L_CIR_fn$inverse_transform(martingale(dataset$Ca2, 0.02)),
   fs = L_CIR_fn,
   dt = 0.02,
   euler_maruyama,
-  reuler_maruyama,
-  subsamples = 1,
-  report = 10
+  rmilstein,
+  subsamples = 2,
+  report = 25
   )
+
+saveRDS(L_cir_maruyama, file = "l_cir_maruyama")
+
+set.seed(1231782)
+L_cir_ll <- bootstrap_model(
+  1000,
+  dataset$Y,
+  par0 = L_CIR_fn$inverse_transform(martingale(dataset$Ca2, 0.02)),
+  fs = L_CIR_fn,
+  dt = 0.02,
+  local_linearization,
+  rmilstein,
+  subsamples = 1,
+  report = 25
+  )
+
+saveRDS(L_cir_ll, file = "l_cir_ll")
+
+set.seed(1231782)
+L_cir_lt <- bootstrap_model(
+  1000, 
+  dataset$Y,
+  par0 = L_CIR_fn$inverse_transform(martingale(dataset$Ca2, 0.02)),
+  fs = L_CIR_fn,
+  dt = 0.02,
+  lie_trotter,
+  rmilstein,
+  subsamples = 2,
+  report = 25
+  )
+
+saveRDS(L_cir_lt, file = "l_cir_lt")
+
+set.seed(1231782)
+L_cir_strang <- bootstrap_model(
+  1000, 
+  dataset$Y,
+  par0 = L_CIR_fn$inverse_transform(martingale(dataset$Ca2, 0.02)),
+  fs = L_CIR_fn,
+  dt = 0.02,
+  strang,
+  rmilstein,
+  subsamples = 2,
+  report = 25
+  )
+
+saveRDS(L_cir_strang, file = "l_cir_strang")
+
+set.seed(1231782)
+cir_maruyama <- bootstrap_model(
+  1000, 
+  dataset$Ca2, 
+  par0 = CIR_fn$inverse_transform(martingale(dataset$Ca2, 0.02)),
+  fs = CIR_fn,
+  dt = 0.02,
+  euler_maruyama,
+  rmilstein,
+  subsamples = 2,
+  report = 25
+  )
+
+saveRDS(cir_maruyama, file = "cir_maruyama")
+
+set.seed(1231782)
+dw_maruyama <- bootstrap_model(
+  1000, 
+  dataset$logCa2, 
+  par0 = DW_fn$inverse_transform(c(1, -1, 1, 1)),
+  fs = CIR_fn,
+  dt = 0.02,
+  euler_maruyama,
+  rmilstein,
+  subsamples = 2,
+  report = 25
+  )
+
+saveRDS(dw_maruyama, file = "dw_maruyama")
+
+set.seed(1231782)
+dw_ll <- bootstrap_model(
+  1000, 
+  dataset$logCa2, 
+  par0 = DW_fn$inverse_transform(c(1, -1, 1, 1)),
+  fs = CIR_fn,
+  dt = 0.02,
+  local_linearization,
+  rmilstein,
+  subsamples = 2,
+  report = 25
+  )
+
+saveRDS(dw_ll, file = "dw_ll")
+
+set.seed(1231782)
+dw_lt <- bootstrap_model(
+  1000, 
+  dataset$logCa2, 
+  par0 = DW_fn$inverse_transform(c(1, -1, 1, 1)),
+  fs = CIR_fn,
+  dt = 0.02,
+  lie_trotter,
+  rmilstein,
+  subsamples = 2,
+  report = 25
+  )
+
+saveRDS(dw_lt, file = "dw_lt")
+
+set.seed(1231782)
+dw_strang <- bootstrap_model(
+  1000, 
+  dataset$logCa2, 
+  par0 = DW_fn$inverse_transform(c(1, -1, 1, 1)),
+  fs = CIR_fn,
+  dt = 0.02,
+  strang,
+  rmilstein,
+  subsamples = 2,
+  report = 25
+  )
+
+saveRDS(dw_strang, file = "dw_strang")
+
+
+
+```
+
+```{r}
+bootstrap_model2 <- function(n, 
+                            x, 
+                            par0, 
+                            fs, 
+                            dt, 
+                            fitter, 
+                            sampler, 
+                            subsamples = 10,
+                            report = 25) {
+  par <- optimizer(
+    par = par0,
+    fn = fitter,
+    dt = dt,
+    data = x
+    )
+  
+  M <- matrix(nrow = n, ncol = length(par))
+  
+  for(i in 1:n) {
+    if(i %% report == 0 & i >= report) 
+      print(paste0("Iteration: ", i, " out of ", n))
+    sims <- sampler(
+      par,
+      x0 = x[1],
+      t0 = 23,
+      t1 = 93,
+      dt = dt / subsamples,
+      fs = fs
+    )
+    
+    M[i, ] <- optimizer(
+    par = par,
+    fn = fitter,
+    dt = dt,
+    data = sims[seq(1, length(sims), subsamples)]
+    )
+  }
+  M
+}
+
+
+sims1 <- rmilstein(
+  c(0.029973824,  0.305129543,  0.454702261, -0.004341656),
+  fs = DW_fn,
+  x0 = dataset$logCa2[1],
+  t0 = 23,
+  t1 = 93,
+  dt = 0.02
+)
+
+optimizer(
+  c(1, -1, 1, 1),
+  fn = LT_likelihood_double_well,
+  data = sims1,
+  dt = 0.02
+)
+
+optimizer(
+  c(1, -1, 1, log(1)),
+  fn = lie_trotter,
+  x = exp(-(sims1 + mean(-log(dataset$Ca2)))),
+  dt = 0.02,
+  fs = exp_DW_fn
+)
+
+DW2_fn <- DW2_functions()
+optimizer(
+  c(1, -1, 1, log(1)),
+  fn = strang,
+  x = sims1,
+  dt = 0.02,
+  fs = DW_fn
+) %>% print()
+
+optimizer(
+  c(1, -1, 1, log(1)),
+  fn = strang,
+  x =  sims1,
+  dt = 0.02,
+  fs = DW2_fn
+) %>% print()
+
+optimizer(
+  c(1, -1, 1, log(1)),
+  fn = euler_maruyama,
+  x = sims1,
+  dt = 0.02,
+  fs = DW_fn
+)
 ```
