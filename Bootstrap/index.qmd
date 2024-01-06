@@ -99,6 +99,36 @@ optimizer <- function(par,
   )
 }
 
+bootstrap_martingale <- function(n, 
+                            x, 
+                            dt, 
+                            fs,
+                            sampler, 
+                            subsamples = 10,
+                            report = 25) {
+  par <- fs$inverse_transform(martingale(x, dt))
+  
+  M <- matrix(nrow = n, ncol = length(par))
+  
+  for(i in 1:n) {
+    if(i %% report == 0 & i >= report) 
+      print(paste0("Iteration: ", i, " out of ", n))
+    sims <- sampler(
+      par,
+      x0 = x[1],
+      t0 = 23,
+      t1 = 93,
+      dt = dt / subsamples,
+      fs = fs
+    )
+    
+    M[i, ] <- martingale(sims[seq(1, length(sims), subsamples)], dt)
+  }
+  M
+}
+
+
+
 bootstrap_model <- function(n, 
                             x, 
                             par0, 
@@ -278,6 +308,28 @@ dw_strang <- bootstrap_model(
   )
 
 saveRDS(dw_strang, file = "dw_strang.rds")
+
+set.seed(1231782)
+cir_martingale <- bootstrap_martingale(
+  n = 1, 
+  x = dataset$Ca2, 
+  dt = 0.02, 
+  fs = CIR_fn,
+  rmilstein, 
+  subsamples = 2, 
+  report = 25
+  )
+
+rmilstein(
+  CIR_fn$inverse_transform(martingale(dataset$Ca2, 0.02)),
+  dataset$Ca2[1],
+  t0 = 23,
+  t1 = 93,
+  fs = CIR_fn,
+  dt = 0.02
+) %>% martingale(0.02)
+
+saveRDS(cir_martingale, file = "cir_martingale.rds")
 ```
 
 ```{r}
@@ -320,6 +372,34 @@ bootstrap_model2 <- function(n,
   }
   M
 }
+
+bootstrap_martingale <- function(n, 
+                            x, 
+                            dt, 
+                            sampler, 
+                            subsamples = 10,
+                            report = 25) {
+  par <- martingale(x, dt)
+  
+  M <- matrix(nrow = n, ncol = length(par))
+  
+  for(i in 1:n) {
+    if(i %% report == 0 & i >= report) 
+      print(paste0("Iteration: ", i, " out of ", n))
+    sims <- sampler(
+      par,
+      x0 = x[1],
+      t0 = 23,
+      t1 = 93,
+      dt = dt / subsamples,
+      fs = fs
+    )
+    
+    M[i, ] <- martingale(sims, dt)
+  }
+  M
+}
+
 
 
 sims1 <- rmilstein(
@@ -364,10 +444,13 @@ optimizer(
 ) %>% print()
 
 optimizer(
-  c(1, -1, 1, log(1)),
-  fn = euler_maruyama,
-  x = sims1,
+  L_CIR_fn$inverse_transform(martingale(dataset$Ca2, 0.02)),
+  fn = lie_trotter,
+  x = dataset$Y,
   dt = 0.02,
-  fs = DW_fn
-)
+  fs = L_CIR_fn
+) %T>%
+  print() %>%
+resid_lie_trotter(dataset$Y, L_CIR_fn, 0.02) %>% 
+  qqnorm()
 ```

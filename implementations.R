@@ -165,7 +165,7 @@ resid_local_linearization <- function(par, x, fs, dt) {
   LL_mean <- x0 + r0 * f + (r0 - dt / df) * (dtf + 0.5 * sigma^2 * d2f)
   LL_sd <- sigma * sqrt(expm1(2 * df * dt) / (2 * df))
   
-  qqnorm(pnorm(x1, mean = LL_mean, sd = LL_sd))
+  qnorm(pnorm(x1, mean = LL_mean, sd = LL_sd))
 }
 
 euler_maruyama <- function(par, x, fs, dt) {
@@ -200,7 +200,7 @@ resid_euler_maruyama <- function(par, x, fs, dt) {
   EM_mean <- x0 + f * dt
   EM_sd <- sigma * sqrt(dt)
   
-  qqnorm(pnorm(x1, mean = EM_mean, sd = EM_sd))
+  qnorm(pnorm(x1, mean = EM_mean, sd = EM_sd))
 }
 
 rmilstein <- function(par, x0, t0, t1, fs, dt) {
@@ -368,7 +368,7 @@ resid_strang <- function(par, x, fs, dt) {
   mu <- exp(A * dt) * (f - b) + b
   omega <- sigma * sqrt(expm1(2 * A * dt) / (2 * A))
   
-  qqnorm(pnorm(inv_f, mean = mu, sd = omega))
+  qnorm(pnorm(inv_f, mean = mu, sd = omega))
 }
 
 lie_trotter <- function(par, x, fs, dt) {
@@ -425,5 +425,12 @@ resid_lie_trotter <- function(par, x, fs, dt) {
   mu <- exp(A * dt) * (f - b) + b
   omega <- sigma * sqrt(expm1(2 * A * dt) / (2 * A))
   
-  qqnorm(pnorm(x1, mean = mu, sd = omega))
+  qnorm(pnorm(x1, mean = mu, sd = omega))
+}
+
+resid_martingale <- function(par, x, dt) {
+  x <- - 4 * par[1] / (par[3]^2 * expm1(-par[1] * dt)) * x
+  x0 <- x[1:(length(x) - 1)]
+  x1 <- x[2:length(x)]
+  qnorm(pchisq(x1, df = 4 * par[2] * par[1] / par[3]^2, ncp = x0 * exp(-par[1] * dt)))
 }
