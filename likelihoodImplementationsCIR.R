@@ -66,9 +66,9 @@ EM_sim_CIR <- function(total_time, step_length, param, X_0){
 # Baseline closed form solution implementation. Note the data needs to be multiplied by 4 * beta/(sigma^2 * (1 - exp(-beta * t)))
 closedform_likelihood_CIR <- function(param, data, dt){
   # Initialize parameters
-  beta <- par[1]
-  mu <- par[2]
-  sigma <- par[3]
+  beta <- param[1]
+  mu <- param[2]
+  sigma <- param[3]
   
   # Prepare data
   N <- length(data)
@@ -78,8 +78,6 @@ closedform_likelihood_CIR <- function(param, data, dt){
   likelihood_value <- -sum(dchisq(upper_x, df = 4 * mu * beta / sigma^2, ncp = lower_x * exp(-beta * dt), log = TRUE))
   likelihood_value
 }
-
-closedform_likelihood_CIR(initial_param, sim_data$X_closed_form, actual_dt)
 
 
 # Direct Euler Maruyama
