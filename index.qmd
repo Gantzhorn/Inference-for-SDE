@@ -1,0 +1,42 @@
+---
+title: "Plotting"
+format: html
+editor: visual
+---
+
+## Load Data
+
+```{r}
+library(magrittr)
+library(dplyr)
+source("load_data.R")
+dataset <- import_data()
+```
+
+## Plot of Data
+
+```{r}
+p1 <- dataset %>% 
+  ggplot(aes(x = age, y = Ca2)) +
+  geom_path() + 
+  ggthemes::theme_base() +
+  xlab("kyears") +
+  ylab(expression(Ca^'+2')) +
+  ggtitle("Ion Concentration")
+
+ggsave(plot = p1, device = "png", filename = "ca2plot.png", width = 10, height = 5)
+
+p2 <- dataset %>% 
+  ggplot(aes(x = age, y = logCa2)) +
+  geom_path() + 
+  ggthemes::theme_base() +
+  xlab("kyears") +
+  ylab(expression(-log(Ca^'+2') - C)) +
+  ggtitle("Log Transformed Ion Concentration")
+
+ggsave(plot = p2, device = "png", filename = "logca2plot.png", width = 10, height = 5)
+```
+
+```{r}
+p1 + theme(panel.border = element_blank())
+```

@@ -66,7 +66,7 @@ test[seq(1, nrow(test), 200), ] %>%
   ggplot2::theme_bw()
 ```
 
-## Bootstrap Test
+## Estimation and Bootstrap
 
 ```{r}
 optimizer <- function(par,
@@ -171,6 +171,154 @@ bootstrap_model <- function(n,
   M
 }
 ```
+
+### Estimation
+
+```{r}
+
+martingale_est <- martingale(dataset$Ca2, 0.02)
+
+CIR_estimations <- data.frame(
+  estimator = "cir_martingale",
+  beta = martingale_est[1],
+  mu = martingale_est[2],
+  sigma = martingale_est[3]
+)
+rownames(CIR_estimations) <- NULL
+
+CIR_par0 <- CIR_fn$inverse_transform(martingale_est)
+DW_par0 <- DW_fn$inverse_transform(c(1, -1, 1, 1))
+
+# EM in Lamperti CIR
+CIR_estimations <- optimizer(
+  par = CIR_par0,
+  fn = euler_maruyama,
+  fs = L_CIR_fn,
+  dt = 0.02,
+  x = dataset$Y
+) %>% L_CIR_fn$transform() %>%
+  t() %>% 
+  data.frame() %>% 
+  dplyr::mutate(estimator = "l_cir_em", .before = 1) %>% 
+  rbind(CIR_estimations)
+
+# Local Linearization in Lamperti CIR
+CIR_estimations <- optimizer(
+  par = CIR_par0,
+  fn = local_linearization,
+  fs = L_CIR_fn,
+  dt = 0.02,
+  x = dataset$Y
+) %>% L_CIR_fn$transform() %>%
+  t() %>% 
+  data.frame() %>% 
+  dplyr::mutate(estimator = "l_cir_ll", .before = 1) %>% 
+  rbind(CIR_estimations)
+
+# Lie-trotter in Lamperti CIR
+CIR_estimations <- optimizer(
+  par = CIR_par0,
+  fn = lie_trotter,
+  fs = L_CIR_fn,
+  dt = 0.02,
+  x = dataset$Y
+) %>% L_CIR_fn$transform() %>%
+  t() %>% 
+  data.frame() %>% 
+  dplyr::mutate(estimator = "l_cir_lt", .before = 1) %>% 
+  rbind(CIR_estimations)
+
+# Strang in Lamperti CIR
+CIR_estimations <- optimizer(
+  par = CIR_par0,
+  fn = strang,
+  fs = L_CIR_fn,
+  dt = 0.02,
+  x = dataset$Y
+) %>% L_CIR_fn$transform() %>%
+  t() %>% 
+  data.frame() %>% 
+  dplyr::mutate(estimator = "l_cir_strang", .before = 1) %>% 
+  rbind(CIR_estimations)
+
+# EM in CIR
+CIR_estimations <- optimizer(
+  par = CIR_par0,
+  fn = euler_maruyama,
+  fs = CIR_fn,
+  dt = 0.02,
+  x = dataset$Ca2
+) %>% CIR_fn$transform() %>%
+  t() %>% 
+  data.frame() %>% 
+  dplyr::mutate(estimator = "cir_em", .before = 1) %>% 
+  rbind(CIR_estimations)
+
+# CIR_estimations <- optimizer(
+#   par = CIR_par0,
+#   fn = euler_maruyama,
+#   fs = log_CIR_fn,
+#   dt = 0.02,
+#   x = dataset$logCa2
+# ) %>% CIR_fn$transform() %>%
+#   t() %>% 
+#   data.frame() %>% 
+#   dplyr::mutate(estimator = "log_cir_em", .before = 1) %>% 
+#   rind(CIR_estimations)
+
+DW_estimators <-optimizer(
+  par = DW_par0,
+  fn = euler_maruyama,
+  fs = DW_fn,
+  dt = 0.02,
+  x = dataset$logCa2
+) %>% DW_fn$transform() %>%
+  t() %>% 
+  data.frame() %>% 
+  dplyr::mutate(estimator = "dw_em", .before = 1) %>% 
+  dplyr::rename(beta1 = X1, beta2 = X2, beta4 = X3, sigma = X4)
+
+DW_estimators <- optimizer(
+  par = DW_par0,
+  fn = local_linearization,
+  fs = DW_fn,
+  dt = 0.02,
+  x = dataset$logCa2
+) %>% DW_fn$transform() %>%
+  t() %>% 
+  data.frame() %>% 
+  dplyr::mutate(estimator = "dw_ll", .before = 1) %>% 
+  dplyr::rename(beta1 = X1, beta2 = X2, beta4 = X3, sigma = X4) %>% 
+  rbind(DW_estimators)
+
+DW_estimators <- optimizer(
+  par = DW_par0,
+  fn = lie_trotter,
+  fs = DW_fn,
+  dt = 0.02,
+  x = dataset$logCa2
+) %>% DW_fn$transform() %>%
+  t() %>% 
+  data.frame() %>% 
+  dplyr::mutate(estimator = "dw_lt", .before = 1) %>% 
+  dplyr::rename(beta1 = X1, beta2 = X2, beta4 = X3, sigma = X4) %>% 
+  rbind(DW_estimators)
+
+DW_estimators <- optimizer(
+  par = c(1, -1, 1, 2),
+  fn = strang,
+  fs = DW_fn,
+  dt = 0.02,
+  x = dataset$logCa2
+) %>% DW_fn$transform() %>%
+  t() %>% 
+  data.frame() %>% 
+  dplyr::mutate(estimator = "dw_strang", .before = 1) %>% 
+  dplyr::rename(beta1 = X1, beta2 = X2, beta4 = X3, sigma = X4) %>% 
+  rbind(DW_estimators)
+```
+
+### Boostrap
 
 ```{r}
 set.seed(1231782)
@@ -311,7 +459,7 @@ saveRDS(dw_strang, file = "dw_strang.rds")
 
 set.seed(1231782)
 cir_martingale <- bootstrap_martingale(
-  n = 1, 
+  n = 1000, 
   x = dataset$Ca2, 
   dt = 0.02, 
   fs = CIR_fn,
@@ -320,137 +468,345 @@ cir_martingale <- bootstrap_martingale(
   report = 25
   )
 
-rmilstein(
-  CIR_fn$inverse_transform(martingale(dataset$Ca2, 0.02)),
-  dataset$Ca2[1],
-  t0 = 23,
-  t1 = 93,
-  fs = CIR_fn,
-  dt = 0.02
-) %>% martingale(0.02)
-
 saveRDS(cir_martingale, file = "cir_martingale.rds")
 ```
 
+## Bootstrap Results
+
 ```{r}
-bootstrap_model2 <- function(n, 
-                            x, 
-                            par0, 
-                            fs, 
-                            dt, 
-                            fitter, 
-                            sampler, 
-                            subsamples = 10,
-                            report = 25) {
-  par <- optimizer(
-    par = par0,
-    fn = fitter,
-    dt = dt,
-    data = x
-    )
-  
-  M <- matrix(nrow = n, ncol = length(par))
-  
-  for(i in 1:n) {
-    if(i %% report == 0 & i >= report) 
-      print(paste0("Iteration: ", i, " out of ", n))
-    sims <- sampler(
-      par,
-      x0 = x[1],
-      t0 = 23,
-      t1 = 93,
-      dt = dt / subsamples,
-      fs = fs
-    )
-    
-    M[i, ] <- optimizer(
-    par = par,
-    fn = fitter,
-    dt = dt,
-    data = sims[seq(1, length(sims), subsamples)]
-    )
-  }
-  M
+convert_cir_param <- function(x) {
+  x[, 1] <- exp(x[, 1])
+  x[, 3] <- exp(x[, 3])
+  x
 }
 
-bootstrap_martingale <- function(n, 
-                            x, 
-                            dt, 
-                            sampler, 
-                            subsamples = 10,
-                            report = 25) {
-  par <- martingale(x, dt)
-  
-  M <- matrix(nrow = n, ncol = length(par))
-  
-  for(i in 1:n) {
-    if(i %% report == 0 & i >= report) 
-      print(paste0("Iteration: ", i, " out of ", n))
-    sims <- sampler(
-      par,
-      x0 = x[1],
-      t0 = 23,
-      t1 = 93,
-      dt = dt / subsamples,
-      fs = fs
-    )
-    
-    M[i, ] <- martingale(sims, dt)
-  }
-  M
+convert_dw_param <- function(x) {
+  x[, 4] <- exp(x[, 4])
+  x
 }
 
+cir_em <- readRDS("cir_maruyama.rds")
+cir_martingale <- readRDS("cir_martingale.rds")
+l_cir_em <- readRDS("l_cir_maruyama.rds")
+l_cir_lt <- readRDS("l_cir_lt.rds")
+l_cir_strang <- readRDS("l_cir_strang.rds")
+l_cir_ll <- readRDS("l_cir_ll.rds")
+
+dw_em <- readRDS("dw_maruyama.rds")
+dw_lt <- readRDS("dw_lt.rds")
+dw_ll <- readRDS("dw_ll.rds")
+dw_strang <- readRDS("dw_strang.rds")
+
+concat_matricies <- function(..., id, names, .transform) {
+  mats <- list(...)
+  args <- lapply(1:length(mats), function(i) {
+    out <- .transform(mats[[i]]) %>% 
+      as.data.frame() %>% 
+      dplyr::mutate(estimator = id[i], .before = 1)
+    names(out) <- names
+    out
+  })
+  do.call(rbind, args)
+}
+  
+dw_bootstraps <- concat_matricies(
+  dw_em,
+  dw_lt,
+  dw_ll,
+  dw_strang,
+  id = c("dw_em", "dw_lt", "dw_ll", "dw_strang"),
+  names = c("estimator", "beta1", "beta2", "beta4", "sigma"),
+  .transform = convert_dw_param
+) %>% tidyr::pivot_longer(
+  -estimator, 
+  names_to = "parameter", 
+  values_to = "estimate"
+  )
+  
+cir_martingale_df <- data.frame(cir_martingale) %>% 
+  dplyr::rename(beta = X1, mu = X2, sigma = X3) %>% 
+  dplyr::mutate(estimator = "cir_martingale", .before = 1)
+
+cir_bootstraps <- concat_matricies(
+  cir_em,
+  l_cir_em,
+  l_cir_lt,
+  l_cir_strang,
+  l_cir_ll,
+  id = c("cir_em", "l_cir_em", "l_cir_lt", "l_cir_strang", "l_cir_ll"),
+  names = c("estimator", "beta", "mu", "sigma"),
+  .transform = convert_cir_param
+) %>% 
+  rbind(cir_martingale_df) %>% 
+  tidyr::pivot_longer(
+  -estimator, 
+  names_to = "parameter", 
+  values_to = "estimate"
+  )
+
+dw_estimates <- DW_estimators %>% 
+  tidyr::pivot_longer(-estimator, names_to = "parameter", values_to = "estimate")
+cir_estimates <- CIR_estimations %>% 
+  tidyr::pivot_longer(-estimator, names_to = "parameter", values_to = "estimate")
 
 
-sims1 <- rmilstein(
-  c(0.029973824,  0.305129543,  0.454702261, -0.004341656),
-  fs = DW_fn,
-  x0 = dataset$logCa2[1],
-  t0 = 23,
-  t1 = 93,
-  dt = 0.02
-)
-
-optimizer(
-  c(1, -1, 1, 1),
-  fn = LT_likelihood_double_well,
-  data = sims1,
-  dt = 0.02
-)
-
-optimizer(
-  c(1, -1, 1, log(1)),
-  fn = euler_maruyama,
-  x = dataset$Ca2,
-  dt = 0.02,
-  fs = exp_DW_fn
-)
+library(ggplot2)
 
 
-optimizer(
-  c(1, -1, 1, log(1)),
-  fn = strang,
-  x = sims1,
-  dt = 0.02,
-  fs = DW_fn
-) %>% print()
+cir_bootstraps %>% 
+  dplyr::filter(
+    (parameter == "sigma" & dplyr::between(estimate, 8, 16)) |
+      (parameter == "mu" & dplyr::between(estimate, 0, 1000)) |
+      (parameter == "beta" & dplyr::between(estimate, 0, 2))
+  ) %>% 
+  dplyr::mutate(
+    estimator = factor(
+      estimator,
+      levels = c(
+        "cir_em",
+        "cir_martingale",
+        "l_cir_em",
+        "l_cir_ll",
+        "l_cir_lt",
+        "l_cir_strang"
+      ),
+      labels = c(
+        "CIR EM",
+        "CIR Martingale",
+        "Lamperti CIR EM",
+        "Lamperti CIR LL",
+        "Lamperti CIR LT",
+        "Lamperti CIR Strang"
+      )
+    )
+  ) %>% 
+  ggplot(aes(x = estimator, y = estimate, fill = estimator)) +
+  geom_violin() +
+  facet_wrap(~ parameter, nrow = 3, scales = "free") +
+  # ggthemes::theme_base() +
+  theme_bw() +
+  theme(legend.position = "right",
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        strip.background = element_rect(fill = "gray95"),
+        strip.text = element_text(size = 12),
+        axis.title.x = element_blank())
+```
 
-optimizer(
-  c(1, -1, 1, log(1)),
-  fn = strang,
-  x =  sims1,
-  dt = 0.02,
-  fs = DW2_fn
-) %>% print()
+```{r}
+p_cir <- cir_bootstraps %>% 
+  dplyr::filter(
+    (parameter == "sigma" & dplyr::between(estimate, 8, 16)) |
+      (parameter == "mu" & dplyr::between(estimate, 0, 1000)) |
+      (parameter == "beta" & dplyr::between(estimate, 0, 2))
+  ) %>%
+  dplyr::left_join(cir_estimates, by = c("estimator", "parameter")) %>% 
+  dplyr::mutate(ARel = abs((estimate.x - estimate.y) / estimate.y)) %>% 
+  dplyr::select(estimator, parameter, ARel) %>% 
+  dplyr::mutate(
+    estimator = factor(
+      estimator,
+      levels = c(
+        "cir_em",
+        "cir_martingale",
+        "l_cir_em",
+        "l_cir_ll",
+        "l_cir_lt",
+        "l_cir_strang"
+      ),
+      labels = c(
+        "CIR EM",
+        "CIR Martingale",
+        "Lamperti CIR EM",
+        "Lamperti CIR LL",
+        "Lamperti CIR LT",
+        "Lamperti CIR Strang"
+      )
+    )
+  ) %>% 
+  ggplot(aes(x = estimator, y = ARel, fill = estimator)) +
+  geom_violin() +
+  # geom_boxplot() +
+  facet_wrap(~ parameter, nrow = 3, scales = "free") +
+  ggthemes::theme_base() +
+  ylab("Absolute Relative Error") +
+  # theme_bw() +
+  theme(legend.position = "right",
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        strip.background = element_rect(fill = "gray95"),
+        strip.text = element_text(size = 12),
+        axis.title.x  = element_blank(),
+        plot.background = element_rect(color = NA))
 
-optimizer(
-  L_CIR_fn$inverse_transform(martingale(dataset$Ca2, 0.02)),
-  fn = lie_trotter,
-  x = dataset$Y,
-  dt = 0.02,
-  fs = L_CIR_fn
-) %T>%
-  print() %>%
-resid_lie_trotter(dataset$Y, L_CIR_fn, 0.02) %>% 
-  qqnorm()
+ggsave("boot_cir.png", plot = p_cir, device = "png", height = 7, width = 10)
+```
+
+### Double-Well Results
+
+```{r}
+dw_bootstraps %>% 
+  # dplyr::filter(
+  #   (parameter == "sigma" & dplyr::between(estimate, 8, 16)) |
+  #     (parameter == "mu" & dplyr::between(estimate, 0, 1000)) |
+  #     (parameter == "beta" & dplyr::between(estimate, 0, 2))
+  # ) %>%
+  dplyr::mutate(
+    estimator = factor(
+      estimator,
+      levels = c(
+        "dw_em",
+        "dw_ll",
+        "dw_lt",
+        "dw_strang"
+      ),
+      labels = c(
+        "DW EM",
+        "DW LL",
+        "DW LT",
+        "DW Strang"
+      )
+    )
+  ) %>% 
+  ggplot(aes(x = estimator, y = estimate, fill = estimator)) +
+  # geom_violin() +
+  geom_boxplot() +
+  facet_wrap(~ parameter, nrow = 3, scales = "free") +
+  # ggthemes::theme_base() +
+  theme_bw() +
+  theme(legend.position = "right",
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        strip.background = element_rect(fill = "gray95"),
+        strip.text = element_text(size = 12))
+```
+
+```{r}
+boot_par <- dw_bootstraps %>% 
+  # dplyr::filter(
+  #   (parameter == "sigma" & dplyr::between(estimate, 8, 16)) |
+  #     (parameter == "mu" & dplyr::between(estimate, 0, 1000)) |
+  #     (parameter == "beta" & dplyr::between(estimate, 0, 2))
+  # ) %>%
+  dplyr::left_join(dw_estimates, by = c("estimator", "parameter")) %>% 
+  dplyr::mutate(ARel = abs((estimate.x - estimate.y) / estimate.y)) %>% 
+  # dplyr::group_by(estimator, parameter) %>% 
+  # dplyr::summarise(Arel = mean(ARel)) %>% print()
+  dplyr::select(estimator, parameter, ARel) %>% 
+  dplyr::mutate(
+    estimator = factor(
+      estimator,
+      levels = c(
+        "dw_em",
+        "dw_ll",
+        "dw_lt",
+        "dw_strang"
+      ),
+      labels = c(
+        "DW EM",
+        "DW LL",
+        "DW LT",
+        "DW Strang"
+      )
+    )
+  ) %>% 
+  ggplot(aes(x = estimator, y = ARel, fill = estimator)) +
+  geom_violin() +
+  # geom_boxplot() +
+  facet_wrap(~ parameter, nrow = 3, scales = "free") +
+  ggthemes::theme_base() +
+  # theme_bw() +
+  ylab("Absolute Relative Error") +
+  theme(legend.position = "right",
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        strip.background = element_rect(fill = "gray95"),
+        strip.text = element_text(size = 12),
+        axis.title.x = element_blank(),
+        plot.background = element_rect(color = NA))
+
+ggsave("boot_dw.png", plot = boot_par, device = "png", height = 7, width = 10)
+```
+
+## Estimating Dynamic Properties
+
+```{r}
+cir_estimates %>% 
+  dplyr::filter(estimator == "l_cir_strang") %>% 
+  tidyr::pivot_wider(
+    names_from = parameter, 
+    values_from = estimate
+  ) %>% 
+  dplyr::mutate(CIR_cond1 = 2 * beta * mu - sigma^2)
+
+cir_bootstraps %>% 
+  dplyr::filter(estimator == "l_cir_strang") %>% 
+  tidyr::pivot_wider(
+    names_from = parameter, 
+    values_from = estimate
+  ) %>% 
+  tidyr::unnest(c(beta, mu, sigma)) %>% 
+  dplyr::mutate(CIR_cond1 = 2 * beta * mu - sigma^2) %>% 
+  dplyr::summarise(
+    lwr = quantile(CIR_cond1, 0.025), 
+    upr = quantile(CIR_cond1, 0.975)
+  )
+```
+
+```{r}
+dw_estimates %>% 
+  dplyr::filter(estimator == "dw_strang") %>% 
+  tidyr::pivot_wider(
+    names_from = parameter, 
+    values_from = estimate
+  )
+
+dw_bootstraps %>% 
+  dplyr::filter(estimator == "dw_strang") %>% 
+  tidyr::pivot_wider(
+    names_from = parameter, 
+    values_from = estimate
+  ) %>% 
+  tidyr::unnest(c(beta1, beta2, beta4, sigma)) %>% 
+  dplyr::mutate(DW_cond1 = beta4) %>% 
+  dplyr::summarise(
+    lwr = quantile(DW_cond1, 0.025), 
+    upr = quantile(DW_cond1, 0.975)
+  )
+```
+
+```{r}
+dw_estimates %>% 
+  tidyr::pivot_wider(names_from = parameter, values_from = estimate) %>% 
+  dplyr::mutate(
+    estimator = factor(
+      estimator,
+      levels = c("dw_em", "dw_ll", "dw_lt", "dw_strang"),
+      labels = c("Double-Well EM", 
+                 "Double-Well LL", 
+                 "Double-Well LT", 
+                 "Double-Well Strang")
+    )
+  ) %>% 
+  dplyr::arrange(estimator) %>% 
+  xtable::xtable(digits = 4) %>% 
+  print(include.rownames = FALSE)
+
+cir_estimates %>% 
+  tidyr::pivot_wider(names_from = parameter, values_from = estimate) %>% 
+  dplyr::mutate(
+    estimator = factor(
+      estimator,
+      levels = c("cir_em", "cir_martingale", "l_cir_em", "l_cir_ll", "l_cir_lt", "l_cir_strang"),
+      labels = c("CIR EM", 
+                 "CIR Martingale", 
+                 "Lamperti CIR EM", 
+                 "Lamperti CIR LL",
+                 "Lamperti CIR LT",
+                 "Lamperti CIR Strang")
+    )
+  ) %>% 
+  dplyr::arrange(estimator) %>% 
+  xtable::xtable(digits = 4) %>% 
+  print(include.rownames = FALSE)
 ```
